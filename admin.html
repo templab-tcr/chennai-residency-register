@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#4a160f">
+<title>Reception – Visitor Control</title>
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600&family=Playfair+Display:ital,wght@1,700&display=swap" rel="stylesheet">
+<style>
+  :root{--bg-1:#6a2017;--bg-2:#3b110b;--gold:#f2bb4e;--soft:#f6d489;--cream:#fbeed6;--muted:#dcb7a2;--line:rgba(242,187,78,.38);
+    --ok:#a9e3b8;--warn:#f08c54;--bad:#ff8a7a;--serif:"Playfair Display",Georgia,serif;--sans:"Jost",system-ui,sans-serif}
+  *{box-sizing:border-box}
+  html{color-scheme:dark}
+  body{margin:0;min-height:100vh;color:var(--cream);font:400 16px/1.5 var(--sans);background:radial-gradient(120% 90% at 50% 0%,var(--bg-1),var(--bg-2) 70%) fixed,var(--bg-2)}
+  .wrap{max-width:560px;margin:0 auto;padding:24px 18px 40px}
+  [hidden]{display:none!important}
+  h1{font:italic 700 1.6rem var(--serif);color:var(--gold);margin:0}
+  .top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:18px}
+  .sub{color:var(--muted);font-size:.8rem}
+  input{width:100%;font:inherit;font-size:1.1rem;color:var(--cream);background:transparent;border:0;border-bottom:1px solid var(--line);padding:12px 2px;margin:14px 0}
+  input:focus{outline:0;border-bottom-color:var(--gold)}
+  .btn{font:inherit;font-weight:600;cursor:pointer;border-radius:99px;min-height:44px;padding:0 22px;border:0;background:var(--gold);color:var(--bg-2)}
+  .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--soft)}
+  .btn.stop{background:var(--bad);color:#3b110b}
+  .btn:disabled{opacity:.5}
+  .msg{color:#ffc4b3;min-height:1.4em;font-size:.9rem}
+  .card{border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:12px 0;background:rgba(242,187,78,.05)}
+  .card.w{border-color:var(--warn)}.card.b{border-color:var(--bad);background:rgba(255,138,122,.09)}.card.d{opacity:.7}
+  .row{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+  .nm{font-weight:600;font-size:1.05rem}
+  .meta{color:var(--muted);font-size:.85rem}
+  .clock{font:italic 700 1.9rem/1.1 var(--serif);color:var(--soft);font-variant-numeric:tabular-nums;text-align:right}
+  .chip{display:inline-block;font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;border-radius:99px;padding:2px 10px;border:1px solid currentColor;margin-top:6px}
+  .ok{color:var(--ok)}.wn{color:var(--warn)}.bd{color:var(--bad)}.gd{color:var(--muted)}
+  .empty{color:var(--muted);text-align:center;margin:40px 0}
+  h2{font-size:.78rem;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin:26px 0 0;font-weight:500}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <section id="login">
+    <h1>Reception control</h1>
+    <p class="sub">Enter the admin PIN to manage visitors.</p>
+    <input id="pin" type="password" inputmode="numeric" autocomplete="current-password" placeholder="Admin PIN">
+    <p id="loginMsg" class="msg" role="alert"></p>
+    <button id="go" class="btn" type="button">Open</button>
+  </section>
+
+  <section id="panel" hidden>
+    <div class="top">
+      <div><h1>Visitors</h1><div class="sub" id="upd"></div></div>
+      <div><button id="refresh" class="btn ghost" type="button">Refresh</button>
+           <button id="lock" class="btn ghost" type="button">Lock</button></div>
+    </div>
+    <p id="msg" class="msg" role="alert"></p>
+    <div id="active"></div>
+    <h2>Stopped (last 12 hours)</h2>
+    <div id="stopped"></div>
+  </section>
+</div>
+<script>
+const CONFIG = {
+  appsScriptUrl: "https://script.google.com/macros/s/AKfycbzrlWJCqzcIXnPgvAGLob9oRMJKdV5SPnqq8yXyMNUsPl6SUPlaV0sHrTsW7MRMS-Lx/exec",
+  allowedMin: 30, graceMin: 30, refreshSec: 15
+};
+const $ = id => document.getElementById(id);
+let pin = '', visitors = [], skew = 0, loadTimer = null;
+try{ pin = sessionStorage.getItem('tcr_pin') || ''; }catch(_){}
+
+async function api(body){
+  const r = await fetch(CONFIG.appsScriptUrl, {method:'POST', body: JSON.stringify(body)});
+  const j = await r.json();
+  if (!j.ok) throw new Error(j.error || 'Request failed.');
+  return j;
+}
+const pad = n => String(n).padStart(2,'0');
+const hms = ms => { const s = Math.max(0, Math.floor(ms/1000)); return pad(Math.floor(s/3600)) + ':' + pad(Math.floor(s/60)%60) + ':' + pad(s%60); };
+const clockTime = t => new Date(t).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+
+async function load(first){
+  try{
+    const j = await api({action:'adminList', pin});
+    visitors = j.visitors; skew = j.now - Date.now();
+    try{ sessionStorage.setItem('tcr_pin', pin); }catch(_){}
+    $('login').hidden = true; $('panel').hidden = false;
+    $('msg').textContent = ''; $('upd').textContent = 'Updated ' + clockTime(Date.now());
+    render();
+    clearInterval(loadTimer); loadTimer = setInterval(() => load(false), CONFIG.refreshSec * 1000);
+  }catch(e){
+    if (first || /PIN/.test(e.message)){
+      $('login').hidden = false; $('panel').hidden = true; clearInterval(loadTimer);
+      $('loginMsg').textContent = e.message === 'Failed to fetch' ? 'No internet connection.' : e.message;
+    } else $('msg').textContent = e.message;
+  }
+}
+function make(tag, cls, text){ const el = document.createElement(tag); if (cls) el.className = cls; if (text != null) el.textContent = text; return el; }
+
+function card(v){
+  const stopped = v.status === 'Stopped';
+  const elapsed = (stopped ? v.stopped : Date.now() + skew) - v.start;
+  const min = elapsed / 60000, over = Math.max(0, Math.ceil(min - CONFIG.allowedMin));
+  let cls = '', chipCls = 'ok', chip = 'Within time';
+  if (min > CONFIG.allowedMin + CONFIG.graceMin){ cls = 'b'; chipCls = 'bd'; chip = 'Over - charge'; }
+  else if (min > CONFIG.allowedMin){ cls = 'w'; chipCls = 'wn'; chip = 'Grace time'; }
+  if (stopped){ cls += ' d'; chipCls = 'gd'; chip = 'Stopped'; }
+
+  const c = make('div', 'card ' + cls), row = make('div', 'row'), left = make('div'), right = make('div');
+  left.append(make('div', 'nm', v.name), make('div', 'meta', 'Meeting: ' + v.meeting + ' · ' + v.mobile),
+              make('div', 'meta', v.ref + ' · started ' + clockTime(v.start)), make('span', 'chip ' + chipCls, chip));
+  const clk = make('div', 'clock', hms(elapsed)); clk.dataset.start = v.start; if (!stopped) clk.dataset.live = '1';
+  right.append(clk);
+  if (!stopped){
+    const b = make('button', 'btn stop', 'Stop'); b.type = 'button'; b.style.marginTop = '10px'; b.onclick = () => stop(v, b);
+    right.append(b);
+  } else right.append(make('div', 'meta', 'Over by ' + over + ' min'));
+  row.append(left, right); c.append(row);
+  return c;
+}
+function render(){
+  const a = $('active'), s = $('stopped'); a.replaceChildren(); s.replaceChildren();
+  const act = visitors.filter(v => v.status === 'Active'), stp = visitors.filter(v => v.status === 'Stopped');
+  if (!act.length) a.append(make('div', 'empty', 'No active visitors.'));
+  act.forEach(v => a.append(card(v))); stp.forEach(v => s.append(card(v)));
+  if (!stp.length) s.append(make('div', 'empty', 'Nothing yet.'));
+}
+async function stop(v, btn){
+  const mins = Math.round((Date.now() + skew - v.start) / 60000);
+  if (!confirm('Stop ' + v.name + '? Stayed ' + mins + ' min. Their phone will show "visit ended".')) return;
+  btn.disabled = true;
+  try{ await api({action:'adminStop', pin, ref:v.ref}); await load(false); }
+  catch(e){ $('msg').textContent = e.message; btn.disabled = false; }
+}
+// live clocks tick every second (cards refresh with each reload)
+setInterval(() => {
+  document.querySelectorAll('.clock[data-live]').forEach(el => { el.textContent = hms(Date.now() + skew - (+el.dataset.start)); });
+}, 1000);
+
+$('go').onclick = () => { pin = $('pin').value.trim(); if (pin) load(true); };
+$('pin').addEventListener('keydown', e => { if (e.key === 'Enter') $('go').click(); });
+$('refresh').onclick = () => load(false);
+$('lock').onclick = () => { try{ sessionStorage.removeItem('tcr_pin'); }catch(_){} pin = ''; location.reload(); };
+if (pin) load(true);
+</script>
+</body>
+</html>
