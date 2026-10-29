@@ -205,14 +205,14 @@
             <option>Voter ID</option><option>PAN</option><option>Passport</option></select></div>
         <div><label for="idNo">ID number</label><input id="idNo" maxlength="30" autocomplete="off"></div>
       </div>
-      <label>ID photos <span class="hint">(front &amp; back)</span></label>
+      <label>ID photos <span class="hint">(optional · front &amp; back)</span></label>
       <div class="row" style="margin-top:8px">
         <div class="shot"><input type="file" id="idFront" accept="image/*" capture="environment" hidden>
           <button type="button" class="shotbtn" data-for="idFront"><img alt="" hidden><span>📷 Front side</span></button></div>
         <div class="shot"><input type="file" id="idBack" accept="image/*" capture="environment" hidden>
           <button type="button" class="shotbtn" data-for="idBack"><img alt="" hidden><span>📷 Back side</span></button></div>
       </div>
-      <p class="note">Please show the original ID at the reception desk.</p>
+      <p class="note">Photos are optional. Please show the original ID at the reception desk.</p>
     </div>
 
     <div class="pane" data-pane="3" hidden>
@@ -422,7 +422,7 @@ function goStep(n){
   if (first && window.innerWidth > 700) first.focus();
 }
 
-/* ---------- ID photos ---------- */
+/* ---------- ID photos (optional) ---------- */
 const shots = {idFront:'', idBack:''};
 function compress(file, max = 1200, q = .7){
   return new Promise((res, rej) => {
@@ -448,7 +448,7 @@ document.querySelectorAll('.shotbtn').forEach(btn => {
       const im = btn.querySelector('img'); im.src = data; im.hidden = false;
       btn.querySelector('span').textContent = '✓ Retake';
       flash($('formMsg'), '');
-    }catch(_){ flash($('formMsg'), 'Could not read that photo. Please try again.'); }
+    }catch(_){ flash($('formMsg'), 'Could not read that photo. Please try again, or skip it.'); }
   };
 });
 
@@ -459,7 +459,7 @@ function collect(){
     type:guestType, name:v('name'), gender:v('gender'), age:v('age'), email:v('email'),
     address:v('address'), comingFrom:v('comingFrom'), purpose:v('purpose'),
     nationality:v('nationality'), idType:v('idType'), idNo:v('idNo'),
-    idFront: shots.idFront, idBack: shots.idBack,
+    idFront: shots.idFront, idBack: shots.idBack,   // empty string when no photo was taken
     passport: foreign ? v('passport') : '', visa: foreign ? v('visa') : '', visaExp: foreign ? v('visaExp') : '',
     persons:v('persons'), roomOrVisiting: visitor ? v('visiting') : v('room'),
     checkout: visitor ? '' : v('checkout'), vehicle:v('vehicle').toUpperCase()
@@ -468,8 +468,8 @@ function collect(){
 const checks = [
   d => d.name.length < 2 ? 'Enter your full name.' : !d.gender ? 'Select gender.' : !(d.age >= 1 && d.age <= 120) ? 'Enter a valid age.'
        : (d.nationality !== 'Indian' && (!d.passport || !d.visa || !d.visaExp)) ? 'Enter passport and visa details.' : '',
-  d => d.address.length < 5 ? 'Enter your home address.' : !d.idType ? 'Select an ID proof.' : d.idNo.length < 4 ? 'Enter the ID number.'
-       : !d.idFront ? 'Take a photo of the ID front side.' : !d.idBack ? 'Take a photo of the ID back side.' : '',
+  // ID photos are optional, so they are not checked here
+  d => d.address.length < 5 ? 'Enter your home address.' : !d.idType ? 'Select an ID proof.' : d.idNo.length < 4 ? 'Enter the ID number.' : '',
   d => !d.purpose ? 'Select the purpose of visit.' : !(d.persons >= 1) ? 'Enter the number of persons.'
        : !d.roomOrVisiting ? (d.type === 'Visitor' ? 'Enter whom you are meeting.' : 'Select your room.')
        : (d.type === 'Guest' && !d.checkout) ? 'Select the expected check-out date.'
