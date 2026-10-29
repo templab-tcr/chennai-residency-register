@@ -338,11 +338,51 @@ function flash(el, text){ el.textContent = text; el.classList.remove('shake'); v
 
 /* ---------- Room list ---------- */
 const ROOMS = {
-  'Floor 1': [[101],[102],[103],[104,'AC'],[105,'AC']],
-  'Floor 2': [[201],[202],[203],[204],[205],[206],[207],[208],[209]],
-  'Floor 3': [[301],[302],[303],[304],[305],[306],[307],[308],[309]],
-  'Floor 4': [[401],[402],[403],[404],[405],[406],[407],[408],[409],
-              [410],[411]]
+  'Floor 1': [
+    [101, 'Non-AC'],
+    [102, 'Non-AC'],
+    [103, 'Non-AC'],
+    [104, 'AC'],
+    [105, 'AC'],
+  ],
+
+  'Floor 2': [
+    [201, 'AC'],
+    [202, 'Non-AC'],
+    [203, 'Non-AC'],
+    [204, 'AC'],
+    [205, 'AC'],
+    [206, 'Non-AC'],
+    [207, 'Non-AC'],
+    [208, 'Non-AC'],
+    [209, 'AC'],
+  ],
+
+  'Floor 3': [
+    [301, 'AC'],
+    [302, 'Non-AC'],
+    [303, 'Non-AC'],
+    [304, 'AC'],
+    [305, 'AC'],
+    [306, 'Non-AC'],
+    [307, 'Non-AC'],
+    [308, 'Non-AC'],
+    [309, 'AC'],
+  ],
+
+  'Floor 4': [
+    [401, 'AC'],
+    [402, 'Non-AC'],
+    [403, 'Non-AC'],
+    [404, 'AC'],
+    [405, 'AC'],
+    [406, 'Non-AC'],
+    [407, 'Non-AC'],
+    [408, 'Non-AC'],
+    [409, 'AC'],
+    [410, 'Non-AC'],
+    [411, 'Non-AC'],
+  ],
 };
 $('room').innerHTML = '<option value="">Select room</option>' + Object.entries(ROOMS).map(([g, list]) =>
   '<optgroup label="' + g + '">' + list.map(([n, t]) =>
