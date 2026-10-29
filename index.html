@@ -205,14 +205,14 @@
             <option>Voter ID</option><option>PAN</option><option>Passport</option></select></div>
         <div><label for="idNo">ID number</label><input id="idNo" maxlength="30" autocomplete="off"></div>
       </div>
-      <label>ID photos <span class="hint">(optional · front &amp; back)</span></label>
+      <label>ID photos <span class="hint" id="photoHint">(front &amp; back)</span></label>
       <div class="row" style="margin-top:8px">
         <div class="shot"><input type="file" id="idFront" accept="image/*" capture="environment" hidden>
           <button type="button" class="shotbtn" data-for="idFront"><img alt="" hidden><span>📷 Front side</span></button></div>
         <div class="shot"><input type="file" id="idBack" accept="image/*" capture="environment" hidden>
           <button type="button" class="shotbtn" data-for="idBack"><img alt="" hidden><span>📷 Back side</span></button></div>
       </div>
-      <p class="note">Photos are optional. Please show the original ID at the reception desk.</p>
+      <p class="note" id="photoNote">Please show the original ID at the reception desk.</p>
     </div>
 
     <div class="pane" data-pane="3" hidden>
@@ -221,8 +221,10 @@
         <option>Pilgrimage</option><option>Personal / family</option><option>Other</option></select>
       <div class="row">
         <div><label for="persons">Total persons</label><input id="persons" type="number" inputmode="numeric" min="1" max="20" value="1"></div>
-        <div id="roomCol"><label for="room">Room number</label><select id="room"></select></div>
+        <div id="acCol"><label for="roomType">AC / Non-AC</label>
+          <select id="roomType"><option value="">Select</option><option>AC</option><option>Non-AC</option></select></div>
       </div>
+      <div id="roomCol"><label for="room">Room number</label><select id="room"></select></div>
       <div id="visitBox" hidden>
         <label for="visiting">Whom are you meeting? <span class="hint">(room no. or name)</span></label>
         <input id="visiting" maxlength="80">
@@ -384,15 +386,25 @@ const ROOMS = {
     [411, 'Non-AC'],
   ],
 };
-$('room').innerHTML = '<option value="">Select room</option>' + Object.entries(ROOMS).map(([g, list]) =>
-  '<optgroup label="' + g + '">' + list.map(([n, t]) =>
-    '<option value="' + n + '">' + n + (t ? ' · ' + t : '') + '</option>').join('') + '</optgroup>').join('');
+function fillRooms(type, keep){
+  const sel = $('room');
+  if (!type){ sel.innerHTML = '<option value="">Select AC / Non-AC first</option>'; sel.disabled = true; return; }
+  const groups = Object.entries(ROOMS).map(([g, list]) => [g, list.filter(r => r[1] === type)]).filter(([, l]) => l.length);
+  sel.innerHTML = '<option value="">Select ' + type + ' room</option>' + groups.map(([g, l]) =>
+    '<optgroup label="' + g + '">' + l.map(([n]) => '<option value="' + n + '">' + n + '</option>').join('') + '</optgroup>').join('');
+  sel.disabled = false;
+  if (keep) sel.value = keep;
+}
+fillRooms('');
+$('roomType').onchange = () => fillRooms($('roomType').value);
 
-// Room from QR link: ?room=204
+// Room from QR link: ?room=204  (also picks AC / Non-AC automatically)
 const qRoom = new URLSearchParams(location.search).get('room');
 if (qRoom){
-  $('room').value = qRoom.slice(0,10);
-  $('roompill').textContent = 'Room ' + qRoom.slice(0,10); $('roompill').hidden = false;
+  const q = qRoom.slice(0,10);
+  const hit = Object.values(ROOMS).flat().find(r => String(r[0]) === q);
+  if (hit){ $('roomType').value = hit[1]; fillRooms(hit[1], q); }
+  $('roompill').textContent = 'Room ' + q; $('roompill').hidden = false;
 }
 $('checkout').min = new Date().toISOString().slice(0,10);
 
@@ -405,7 +417,9 @@ $('pickVisitor').onclick = () => pick('Visitor');
 const TITLES = ['About you','Address & ID','Your stay','Mobile & confirm'];
 function refreshForm(){
   const visitor = guestType === 'Visitor', foreign = $('nationality').value !== 'Indian';
-  $('visitBox').hidden = !visitor; $('outBox').hidden = visitor; $('roomCol').hidden = visitor;
+  $('visitBox').hidden = !visitor; $('outBox').hidden = visitor; $('roomCol').hidden = visitor; $('acCol').hidden = visitor;
+  $('photoHint').textContent = visitor ? '(optional · front & back)' : '(required · front & back)';
+  $('photoNote').textContent = visitor ? 'Photos are optional for visitors. Please show the original ID at the reception desk.' : 'Please show the original ID at the reception desk.';
   $('foreignBox').hidden = !foreign;
   if (foreign) $('idType').value = 'Passport';
 }
@@ -459,18 +473,20 @@ function collect(){
     type:guestType, name:v('name'), gender:v('gender'), age:v('age'), email:v('email'),
     address:v('address'), comingFrom:v('comingFrom'), purpose:v('purpose'),
     nationality:v('nationality'), idType:v('idType'), idNo:v('idNo'),
-    idFront: shots.idFront, idBack: shots.idBack,   // empty string when no photo was taken
+    idFront: shots.idFront, idBack: shots.idBack,   // empty string if a visitor skips the photo
     passport: foreign ? v('passport') : '', visa: foreign ? v('visa') : '', visaExp: foreign ? v('visaExp') : '',
-    persons:v('persons'), roomOrVisiting: visitor ? v('visiting') : v('room'),
+    persons:v('persons'), roomType: visitor ? '' : v('roomType'), roomOrVisiting: visitor ? v('visiting') : v('room'),
     checkout: visitor ? '' : v('checkout'), vehicle:v('vehicle').toUpperCase()
   };
 }
 const checks = [
   d => d.name.length < 2 ? 'Enter your full name.' : !d.gender ? 'Select gender.' : !(d.age >= 1 && d.age <= 120) ? 'Enter a valid age.'
        : (d.nationality !== 'Indian' && (!d.passport || !d.visa || !d.visaExp)) ? 'Enter passport and visa details.' : '',
-  // ID photos are optional, so they are not checked here
-  d => d.address.length < 5 ? 'Enter your home address.' : !d.idType ? 'Select an ID proof.' : d.idNo.length < 4 ? 'Enter the ID number.' : '',
+  // ID proof and photos are mandatory for guests, photos are optional for visitors
+  d => d.address.length < 5 ? 'Enter your home address.' : !d.idType ? 'Select an ID proof.' : d.idNo.length < 4 ? 'Enter the ID number.'
+       : (d.type === 'Guest' && !d.idFront) ? 'Take a photo of the ID front side.' : (d.type === 'Guest' && !d.idBack) ? 'Take a photo of the ID back side.' : '',
   d => !d.purpose ? 'Select the purpose of visit.' : !(d.persons >= 1) ? 'Enter the number of persons.'
+       : (d.type === 'Guest' && !d.roomType) ? 'Select AC or Non-AC.'
        : !d.roomOrVisiting ? (d.type === 'Visitor' ? 'Enter whom you are meeting.' : 'Select your room.')
        : (d.type === 'Guest' && !d.checkout) ? 'Select the expected check-out date.'
        : (d.email && !/^\S+@\S+\.\S+$/.test(d.email)) ? 'Enter a valid email or leave it empty.' : '',
