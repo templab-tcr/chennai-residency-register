@@ -559,7 +559,7 @@ $("camSnap").onclick=()=>{let v=$("camVideo");if(!v.videoWidth)return alert("Cam
 $("camCancel").onclick=camClose;
 function reconcileRooms(){let occ={};db.guests.forEach(g=>{if(g.status==="Occupied")occ[g.room]=g.id});Object.values(db.rooms).forEach(r=>{if(r.status==="Occupied"&&!occ[r.number]){r.status="dirty";r.guest=null}else if(occ[r.number]&&r.status!=="Occupied"){r.status="Occupied";r.guest=occ[r.number]}})}
 // GOOGLE SHEET DATABASE (Apps Script web app)
-const DEFAULT_SHEET_URL=""; /* optional: paste your Apps Script /exec URL here. NEVER put the token here - the repo is public */
+const DEFAULT_SHEET_URL="https://script.google.com/macros/s/AKfycbwzQhj5WlcrQ-0tCxn0h7F6HeZxSKt3eqIYyIEKxDSd14BrVjH8insBz0pDLhUEvqLAuw/exec"; /* optional: paste your Apps Script /exec URL here. NEVER put the token here - the repo is public */
 const shUrl=()=>localStorage.getItem("shUrl")||DEFAULT_SHEET_URL,shTok=()=>localStorage.getItem("shTok")||"",shSet=t=>{let e=$("shStatus");if(e)e.textContent=" "+t};
 const shGet=async a=>(await fetch(shUrl()+"?action="+a+"&token="+encodeURIComponent(shTok()))).json();
 let shTm=null;function sheetPushSoon(){if(!shUrl())return;clearTimeout(shTm);shTm=setTimeout(sheetPush,2500)}
